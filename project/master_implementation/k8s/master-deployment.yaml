@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: master-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-master
+  template:
+    metadata:
+      labels:
+        app: distributed-master
+    spec:
+      containers:
+      - name: master-container
+        image: joctan04/db-master:latest
+        ports:
+        - containerPort: 8081

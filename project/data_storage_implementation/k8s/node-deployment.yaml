@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-deployment
+spec:
+  replicas: 3  # Número de nodos simulados
+  selector:
+    matchLabels:
+      app: distributed-node
+  template:
+    metadata:
+      labels:
+        app: distributed-node
+    spec:
+      containers:
+      - name: node-container
+        image: joctan04/db-node:latest
+        ports:
+        - containerPort: 8082

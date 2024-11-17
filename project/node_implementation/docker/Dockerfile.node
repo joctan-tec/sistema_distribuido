@@ -1,0 +1,8 @@
+# Usar una imagen base de OpenJDK
+FROM openjdk:17-jdk-slim
+
+# Copiar el archivo JAR de la aplicación al contenedor
+COPY target/node-app.jar /app/node.jar
+
+# Ejecutar el JAR al iniciar el contenedor
+ENTRYPOINT ["java", "-jar", "/app/node.jar"]
