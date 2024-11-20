@@ -7,5 +7,3 @@ project_root_dir=$(dirname "$current_dir")
 
 kubectl apply -f $project_root_dir/k8s/master-deployment.yaml
 kubectl apply -f $project_root_dir/k8s/master-service.yaml
-kubectl apply -f $project_root_dir/k8s/node-deployment.yaml
-kubectl apply -f $project_root_dir/k8s/node-service.yaml

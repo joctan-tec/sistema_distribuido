@@ -6,3 +6,4 @@ COPY target/node-app.jar /app/node.jar
 
 # Ejecutar el JAR al iniciar el contenedor
 ENTRYPOINT ["java", "-jar", "/app/node.jar"]
+EXPOSE 8081

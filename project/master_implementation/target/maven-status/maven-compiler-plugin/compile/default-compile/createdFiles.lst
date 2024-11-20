@@ -1,0 +1,7 @@
+Node.class
+Task.class
+Master.class
+ResourceManager$Resource.class
+ResourceManager.class
+Master$TestHandler.class
+Master$RegisterNodeHandler.class

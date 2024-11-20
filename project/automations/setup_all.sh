@@ -4,13 +4,9 @@
 current_dir=$(realpath "$0")
 current_dir=$(dirname "$current_dir")
 project_root_dir=$(dirname "$current_dir")
-project_root_dir=$(dirname "$project_root_dir")
 # Crea los jar
 cd $project_root_dir
-
 mvn clean package
-
-cd master_implementation
 
 # Ejecuta todos los scripts de configuración
 sh $current_dir/create_docker_images.sh

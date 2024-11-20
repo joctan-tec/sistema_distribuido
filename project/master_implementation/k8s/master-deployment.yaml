@@ -14,6 +14,22 @@ spec:
     spec:
       containers:
       - name: master-container
-        image: joctan04/db-master:latest
+        image: joctan04/ds-master:latest
         ports:
         - containerPort: 8081
+        volumeMounts:
+        - name: ca-certificates
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
+      volumes:
+      - name: ca-certificates
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              expirationSeconds: 3600
+          - configMap:
+              name: kube-root-ca.crt
+              items:
+              - key: ca.crt
+                path: ca.crt
