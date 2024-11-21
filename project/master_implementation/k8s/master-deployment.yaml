@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: master-container
-        image: joctan04/ds-master:latest
+        image: brendabbr2/ds-master:latest
         ports:
         - containerPort: 8081
         volumeMounts:

@@ -1,92 +1,84 @@
-import io.kubernetes.client.openapi.ApiClient;
-import io.kubernetes.client.openapi.ApiException;
-import io.kubernetes.client.openapi.apis.CoreV1Api;
-import io.kubernetes.client.openapi.models.V1Pod;
-import io.kubernetes.client.openapi.models.V1PodList;
-import io.kubernetes.client.util.Config;
+import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.regex.Pattern;
+import java.util.concurrent.Executors;
 
 public class Master {
 
+    private static final HashMap<String, Node> nodes = new HashMap<>();
+    private ArrayList<Task> tasks;  
+    // Método para inicializar y ejecutar el servidor HTTP
+    public static void startHttpServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
 
+        // Registrar el endpoint /registerNode
+        server.createContext("/registerNode", new RegisterNodeHandler());
 
-public static HashMap<String, String> getNodes() {
-    try {
-        // Inicializar el cliente de Kubernetes
-        ApiClient client = Config.defaultClient();
-        CoreV1Api api = new CoreV1Api(client);
-        HashMap<String, String> nodes = new HashMap<>();
-        Pattern pattern = Pattern.compile("^node-job.*");
+        // Configurar un pool de threads para manejar solicitudes
+        server.setExecutor(Executors.newFixedThreadPool(10));
 
-        // Obtener la lista de pods
-        V1PodList podList = api.listPodForAllNamespaces(
-                null, null, null, null, null, null, null, null, null, false);
-
-        // Filtrar y mapear los pods que cumplen con el patrón
-        List<V1Pod> filteredPods = podList.getItems().stream()
-                .filter(pod -> pattern.matcher(pod.getMetadata().getName()).matches())
-                .collect(Collectors.toList());
-
-        // Imprimir los nombres de los pods y las IPs que cumplen con el patrón
-        for (V1Pod pod : filteredPods) {
-            String podName = pod.getMetadata().getName();
-            String podIp = pod.getStatus().getPodIP();
-            //System.out.println("Pod: " + podName + ", IP: " + podIp);
-            nodes.put(podName, podIp);
-        }
-
-        return nodes;
-
-    } catch (ApiException e) {
-        System.out.println("Error al listar los pods: " + e.getResponseBody());
-        return null;
-    } catch (IOException e) {
-        System.out.println("Error al obtener la configuración del cliente: " + e.getMessage());
-        return null;
+        System.out.println("Servidor HTTP iniciado en el puerto 8081");
+        server.start();
     }
-}
 
-    public static void main(String[] args) {
-        // Ejecutar el método para listar los pods y obtener la IP del pod deseado
-        HashMap<String, String> nodes = getNodes();
-        if (nodes == null) {
-            System.out.println("No se encontró el pod 'node-job'.");
-            return;
-        }
+    // Manejador para el endpoint /registerNode
+    static class RegisterNodeHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            // Solo aceptar solicitudes POST
+            if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                // Leer el cuerpo de la solicitud
+                String requestBody = new String(exchange.getRequestBody().readAllBytes());
+                
+                // Validar y registrar el nodo
+                if (isValidIp(requestBody)) {
+                    synchronized (nodes) {
+                        String nodeName = "Node-" + (nodes.size() + 1); // Crear un nombre único
+                        Node newNode = new Node(nodeName, requestBody);
+                        nodes.put(nodeName, newNode);
+                    }
 
-        // Hacer una petición HTTP a cada nodo
-        for (String nodeName : nodes.keySet()) {
-            String nodeIp = nodes.get(nodeName);
-            try {
-                URL url = new URL("http://" + nodeIp + ":8081/test");
-                HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                con.setRequestMethod("GET");
-
-                int status = con.getResponseCode();
-                if (status == 200) {
-                    // Leer la respuesta del nodo
-                    System.out.println("\n--------------------------------------------\n");
-                    System.out.println("GET " + url + " " + status);
-                    System.out.println("Respuesta del nodo " + nodeName + ":");
-                    con.getInputStream().transferTo(System.out);
-                    System.out.println("\n--------------------------------------------\n");
-
+                    String response = "Nodo registrado exitosamente con IP: " + requestBody;
+                    exchange.sendResponseHeaders(200, response.getBytes().length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(response.getBytes());
+                    }
                 } else {
-                    System.out.println("GET " + url + " " + status);
+                    String response = "Formato de IP inválido";
+                    exchange.sendResponseHeaders(400, response.getBytes().length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(response.getBytes());
+                    }
                 }
-            } catch (IOException e) {
-                System.out.println("Error al hacer la petición a " + nodeIp + ": " + e.getMessage());
+            } else {
+                String response = "Método no permitido";
+                exchange.sendResponseHeaders(405, response.getBytes().length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(response.getBytes());
+                }
             }
         }
 
-        
+        // Validar formato de IP
+        private boolean isValidIp(String ip) {
+            String ipPattern = 
+                "^((25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$";
+            return ip.matches(ipPattern);
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            // Iniciar el servidor HTTP
+            startHttpServer();
+        } catch (IOException e) {
+            System.out.println("Error al iniciar el servidor HTTP: " + e.getMessage());
+        }
     }
 }
