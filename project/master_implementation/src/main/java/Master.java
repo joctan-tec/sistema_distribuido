@@ -8,80 +8,85 @@ import io.kubernetes.client.util.Config;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
 public class Master {
 
-    public static String getIpNode() {
-        try {
-            // Inicializar el cliente de Kubernetes
-            ApiClient client = Config.defaultClient();
-            CoreV1Api api = new CoreV1Api(client);
 
-            // Obtener la lista de pods
-            V1PodList podList = api.listPodForAllNamespaces(
-                    null, null, null, null, null, null, null, null, null, false);
 
-            // Obtener los nombres de los pods y las IPs de los nodos
-            List<String> podNames = podList.getItems().stream()
-                    .map(V1Pod::getMetadata)
-                    .map(metadata -> metadata.getName())
-                    .collect(Collectors.toList());
-            List<String> nodeIps = podList.getItems().stream()
-                    .map(V1Pod::getStatus)
-                    .map(status -> status.getPodIP())
-                    .collect(Collectors.toList());
+public static HashMap<String, String> getNodes() {
+    try {
+        // Inicializar el cliente de Kubernetes
+        ApiClient client = Config.defaultClient();
+        CoreV1Api api = new CoreV1Api(client);
+        HashMap<String, String> nodes = new HashMap<>();
+        Pattern pattern = Pattern.compile("^node-job.*");
 
-            // Validar que existe el pod llamado "node-pod"
-            if (!podNames.contains("node-pod")) {
-                return "El pod con nombre 'node-pod' no fue encontrado.";
-            }
+        // Obtener la lista de pods
+        V1PodList podList = api.listPodForAllNamespaces(
+                null, null, null, null, null, null, null, null, null, false);
 
-            // Obtener la IP del pod con nombre "node-pod"
-            String nodeIp = nodeIps.get(podNames.indexOf("node-pod"));
+        // Filtrar y mapear los pods que cumplen con el patrón
+        List<V1Pod> filteredPods = podList.getItems().stream()
+                .filter(pod -> pattern.matcher(pod.getMetadata().getName()).matches())
+                .collect(Collectors.toList());
 
-            return nodeIp != null ? nodeIp : "No se encontró una IP para el pod 'node-pod'.";
-
-        } catch (ApiException e) {
-            return "Error al listar los pods. Detalles: " + e.getResponseBody();
-        } catch (IOException e) {
-            return "Error al inicializar el cliente de Kubernetes: " + e.getMessage();
+        // Imprimir los nombres de los pods y las IPs que cumplen con el patrón
+        for (V1Pod pod : filteredPods) {
+            String podName = pod.getMetadata().getName();
+            String podIp = pod.getStatus().getPodIP();
+            //System.out.println("Pod: " + podName + ", IP: " + podIp);
+            nodes.put(podName, podIp);
         }
+
+        return nodes;
+
+    } catch (ApiException e) {
+        System.out.println("Error al listar los pods: " + e.getResponseBody());
+        return null;
+    } catch (IOException e) {
+        System.out.println("Error al obtener la configuración del cliente: " + e.getMessage());
+        return null;
     }
+}
 
     public static void main(String[] args) {
         // Ejecutar el método para listar los pods y obtener la IP del pod deseado
-        String nodeIp = getIpNode();
-        System.out.println("Resultado: " + nodeIp);
-
-        // Verificar si se obtuvo una IP válida
-        if (nodeIp == null || nodeIp.startsWith("Error")) {
-            System.out.println("No se puede proceder con la consulta debido a un error.");
+        HashMap<String, String> nodes = getNodes();
+        if (nodes == null) {
+            System.out.println("No se encontró el pod 'node-job'.");
             return;
         }
 
-        // Realizar una consulta HTTP a la IP del pod
-        try {
-            URL url = new URL("http://" + nodeIp + ":8081/test"); // Ajusta el puerto según sea necesario
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
+        // Hacer una petición HTTP a cada nodo
+        for (String nodeName : nodes.keySet()) {
+            String nodeIp = nodes.get(nodeName);
+            try {
+                URL url = new URL("http://" + nodeIp + ":8081/test");
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("GET");
 
-            int responseCode = connection.getResponseCode();
-            System.out.println("Respuesta de la consulta al pod 'node-pod': Código de respuesta = " + responseCode);
+                int status = con.getResponseCode();
+                if (status == 200) {
+                    // Leer la respuesta del nodo
+                    System.out.println("\n--------------------------------------------\n");
+                    System.out.println("GET " + url + " " + status);
+                    System.out.println("Respuesta del nodo " + nodeName + ":");
+                    con.getInputStream().transferTo(System.out);
+                    System.out.println("\n--------------------------------------------\n");
 
-            if (responseCode == 200) {
-                System.out.println("Consulta exitosa al pod 'node-pod'.");
-                // Mostrar la respuesta del pod
-                System.out.println("Respuesta del pod 'node-pod':");
-                connection.getInputStream().transferTo(System.out);
-
-            } else {
-                System.out.println("Consulta fallida. Código de respuesta: " + responseCode);
+                } else {
+                    System.out.println("GET " + url + " " + status);
+                }
+            } catch (IOException e) {
+                System.out.println("Error al hacer la petición a " + nodeIp + ": " + e.getMessage());
             }
-
-        } catch (IOException e) {
-            System.out.println("Error al realizar la consulta HTTP: " + e.getMessage());
         }
+
+        
     }
 }

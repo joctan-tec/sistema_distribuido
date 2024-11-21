@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: node-job-PLACEHOLDER  # PLACEHOLDER será reemplazado
+spec:
+  completions: 1  # Un solo Pod por Job
+  parallelism: 1  # Un Pod a la vez
+  backoffLimit: 0  # No intentar reiniciar el Pod si termina
+  template:
+    metadata:
+      labels:
+        app: node
+    spec:
+      containers:
+      - name: node-container
+        image: joctan04/ds-node:latest
+        ports:
+        - containerPort: 8081
+      restartPolicy: Never

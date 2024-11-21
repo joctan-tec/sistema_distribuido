@@ -13,7 +13,3 @@ kubectl apply -f $project_root_dir/master_implementation/k8s/cluster-role-bindin
 # Master
 kubectl apply -f $project_root_dir/master_implementation/k8s/master-service.yaml
 kubectl apply -f $project_root_dir/master_implementation/k8s/master-deployment.yaml
-
-
-# Node
-kubectl apply -f $project_root_dir/node_implementation/k8s/node-pod.yaml

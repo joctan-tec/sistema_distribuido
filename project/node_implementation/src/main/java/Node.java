@@ -55,6 +55,9 @@ public class Node {
         public void handle(HttpExchange t) throws IOException {
             System.out.println("GET /test 200 OK");
             String response = "Hello, world!";
+            // Obtener la dirección IP del nodo
+            InetAddress ip = InetAddress.getLocalHost();
+            response += "\nIP: " + ip.getHostAddress();
 
             t.sendResponseHeaders(200, response.length());
             OutputStream os = t.getResponseBody();
