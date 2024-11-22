@@ -1,8 +1,0 @@
-# Usar una imagen base de OpenJDK
-FROM openjdk:17-jdk-slim
-
-# Copiar el archivo JAR de la aplicación al contenedor
-COPY target/master-app.jar /app/master.jar
-
-# Ejecutar el JAR al iniciar el contenedor
-ENTRYPOINT ["java", "-jar", "/app/master.jar"]

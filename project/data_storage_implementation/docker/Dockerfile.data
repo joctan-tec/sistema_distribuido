@@ -1,0 +1,11 @@
+# Usar una imagen base de OpenJDK
+FROM openjdk:17-jdk-slim
+# Copiar el archivo JAR y el script de entrada al contenedor
+COPY target/data-app.jar /app/data.jar
+COPY entrypoint.sh /app/entrypoint.sh
+# Dar permisos de ejecución al script
+RUN chmod +x /app/entrypoint.sh
+# Usar el script como punto de entrada
+ENTRYPOINT ["bash", "/app/entrypoint.sh"]
+# Exponer el puerto 8081
+EXPOSE 8081
