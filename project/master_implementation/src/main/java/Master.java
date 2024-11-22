@@ -17,10 +17,34 @@ public class Master {
 
     private final HashMap<String, Node> nodes = new HashMap<>();
     private ArrayList<Task> tasks; 
+    private LoadBalancer loadBalancer; // Balanceador de carga
     private int taskAmount = 0;
 
     public Master() {
         this.tasks = new ArrayList<>();
+        this.loadBalancer = new LoadBalancer(new ArrayList<>(nodes.values())); // Inicializar con nodos vacíos
+    }
+
+    public void addNode(Node node) {
+        synchronized (nodes) {
+            nodes.put(node.getName(), node);
+            updateLoadBalancer();
+        }
+    }
+
+    public void removeNode(String nodeName) {
+        synchronized (nodes) {
+            nodes.remove(nodeName);
+            updateLoadBalancer();
+        }
+    }
+
+    private void updateLoadBalancer() {
+        loadBalancer = new LoadBalancer(new ArrayList<>(nodes.values()));
+    }
+
+    public Node getNextNode() {
+        return loadBalancer.getNextNode();
     }
 
     public HashMap<String, Node> getNodes() {
@@ -80,7 +104,7 @@ public class Master {
                 // Llamar al LoadBalancer para ver cual nodo tiene menos tareas y obtener su IP
 
                 // Por ahora, simplemente seleccionar el primer nodo de la lista
-                String nodeIp;
+                //String nodeIp;
                 synchronized (master.getNodes()) {
                     if (master.getNodes().isEmpty()) {
                         String response = "No hay nodos registrados";
@@ -90,6 +114,10 @@ public class Master {
                         }
                         return;
                     }
+
+                    // Usar el LoadBalancer para obtener el siguiente nodo
+                    Node selectedNode = master.getNextNode();
+                    String nodeIp = selectedNode.getIp();
                     
                     nodeIp = master.getNodes().values().iterator().next().getIp();
                     int taskId = master.getTaskAmount() + 1;
