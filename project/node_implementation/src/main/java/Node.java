@@ -3,6 +3,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodList;
@@ -10,18 +11,31 @@ import io.kubernetes.client.util.Config;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Array;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.json.JSONObject;
 
 public class Node {
 
     private static final String MASTER_POD_PATTERN = "^master-deployment.*";
     private static final int RETRY_DELAY_MS = 5000; // Intervalo de reintento en milisegundos
+    private ArrayList<Task> tasks; // Lista de tareas asignadas al nodo
+
+
+    public Node() {
+        this.tasks = new ArrayList<>();
+    }
+
+    public void addTask(Task task) {
+        tasks.add(task);
+    }
 
     public static void main(String[] args) throws IOException {
         // Iniciar el servidor HTTP local del nodo
@@ -29,6 +43,7 @@ public class Node {
         Node node = new Node();
 
         server.createContext("/test", new TestHandler());
+        server.createContext("/assignTask", new AssignTaskHandler(node));
         server.setExecutor(null);
         server.start();
         System.out.println("Node running on port 8081");
@@ -37,6 +52,7 @@ public class Node {
         while (true) {
             try {
                 // Obtener la IP del pod maestro
+                System.out.println("Searching for master pod...");
                 String masterIp = getMasterIp();
                 if (masterIp != null) {
                     System.out.println("Master IP found: " + masterIp);
@@ -66,29 +82,111 @@ public class Node {
         }
     }
 
+    // Manejador para el endpoint /assignTask
+    static class AssignTaskHandler implements HttpHandler {
+        private final Node node;
+
+        public AssignTaskHandler(Node node) {
+            this.node = node;
+        }
+
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            if ("POST".equalsIgnoreCase(t.getRequestMethod())) {
+                // Leer el cuerpo de la solicitud
+                String requestBody = new String(t.getRequestBody().readAllBytes());
+                System.out.println("POST /assignTask 200 OK");
+                System.out.println("Task assigned: " + requestBody);
+
+                // Parsear el cuerpo de la solicitud como una tarea
+                /*Cuerpo:
+                 * 
+                 * {
+                 *    "id": string,
+                 *    "fileName": string
+                 *  "status": string
+                 * }
+                 */
+                // Parsear el cuerpo de la solicitud como una tarea
+                JSONObject taskJson = new JSONObject(requestBody);
+                String id = taskJson.getString("id");
+                String fileName = taskJson.getString("fileName");
+                String status = taskJson.getString("status");
+
+
+                
+
+                // Crear una nueva tarea y agregarla a la lista de tareas del nodo
+                Task task = new Task(id, fileName, status);
+                node.addTask(task);
+
+                // Responder con un mensaje de éxito
+                String response = "Task assigned to node";
+                t.sendResponseHeaders(200, response.length());
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes());
+                os.close();
+            } else {
+                System.out.println("POST /assignTask 405 Method Not Allowed");
+                String response = "Method not allowed";
+                t.sendResponseHeaders(405, response.length());
+                OutputStream os = t.getResponseBody();
+                os.write(response.getBytes());
+                os.close();
+            }
+        }
+    }
+
     // Método para buscar la IP del pod maestro
     private static String getMasterIp() {
         try {
             // Inicializar el cliente de Kubernetes
+            System.out.println("Initializing Kubernetes client...");
             ApiClient client = Config.defaultClient();
+            System.out.println("Kubernetes client initialized");
             CoreV1Api api = new CoreV1Api(client);
+            System.out.println("CoreV1Api initialized");
+
+            Pattern pattern = Pattern.compile("^master-deployment.*");
 
             // Obtener la lista de pods
             V1PodList podList = api.listPodForAllNamespaces(
-                    null, null, null, null, null, null, null, null, null, false);
+                null, null, null, null, null, null, null, null, null, false);
+
+            // Filtrar y mapear los pods que cumplen con el patrón
+            List<V1Pod> filteredPods = podList.getItems().stream()
+                .filter(pod -> pattern.matcher(pod.getMetadata().getName()).matches())
+                .collect(Collectors.toList());
+
+
+            for (V1Pod pod : podList.getItems()) {
+                System.out.println("Pod: " + pod.getMetadata().getName());
+            }
+            System.out.println("Pods found: " + podList.getItems().size());
 
             // Filtrar los pods que cumplen con el patrón
-            List<V1Pod> filteredPods = podList.getItems().stream()
+            /*List<V1Pod> filteredPods = podList.getItems().stream()
                     .filter(pod -> Pattern.matches(MASTER_POD_PATTERN, pod.getMetadata().getName()))
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toList());*/
+            
 
             // Retornar la IP del primer pod encontrado
             if (!filteredPods.isEmpty()) {
                 return filteredPods.get(0).getStatus().getPodIP();
             }
 
-        } catch (Exception e) {
-            System.out.println("Error al obtener la IP del maestro: " + e.getMessage());
+        } 
+        catch (ApiException e) {
+            System.out.println("Error al listar los pods: " + e.getResponseBody());
+            return null;
+        }
+        
+        catch (IOException e) {
+            System.out.println("Error al inicializar el cliente de Kubernetes: " + e.getMessage());
+        }
+        
+        catch (Exception e) {
+            System.out.println("Error al buscar el pod maestro: " + e.getMessage());
         }
         return null;
     }

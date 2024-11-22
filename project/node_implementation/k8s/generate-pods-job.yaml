@@ -11,10 +11,10 @@ spec:
       labels:
         app: node
     spec:
-      serviceAccountName: service-account-node  # Usar el ServiceAccount ya creado
+      serviceAccountName: node-serviceaccount-node  # Usar el ServiceAccount ya creado
       containers:
       - name: node-container
-        image: brendabbr2/ds-node:latest
+        image: joctan04/ds-node:latest
         ports:
         - containerPort: 8081
         volumeMounts:

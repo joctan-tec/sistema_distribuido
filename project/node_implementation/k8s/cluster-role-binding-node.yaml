@@ -4,7 +4,7 @@ metadata:
   name: pod-reader-binding-node
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: node-serviceaccount-node  # Corregido aquí
   namespace: default
 roleRef:
   kind: ClusterRole

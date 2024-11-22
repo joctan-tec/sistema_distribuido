@@ -1,5 +1,8 @@
+Master$HomeHandler.class
+Master$NodesHandler.class
 Node.class
 Task.class
+Master$GetNewIdHandler.class
 Master.class
 ResourceManager$Resource.class
 ResourceManager.class

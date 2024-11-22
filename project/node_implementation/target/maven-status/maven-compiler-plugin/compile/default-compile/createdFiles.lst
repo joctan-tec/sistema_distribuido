@@ -1,4 +1,5 @@
 Node.class
+Node$AssignTaskHandler.class
 Task.class
 HealthCheck.class
 Node$TestHandler.class
