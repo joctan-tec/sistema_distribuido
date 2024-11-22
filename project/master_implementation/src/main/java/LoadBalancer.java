@@ -1,29 +1,45 @@
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.List;
 
 public class LoadBalancer {
 
-    private final ArrayList<Node> nodes; // Lista de nodos registrados
-    private Iterator<Node> nodeIterator; // Iterador para implementar Round Robin
+    private final List<Node> nodes;  // Lista de nodos registrados
+    private int currentIndex = 0;    // Índice para implementar Round Robin
 
-    public LoadBalancer(ArrayList<Node> nodes) {
+    public LoadBalancer(List<Node> nodes) {
         this.nodes = nodes;
-        this.nodeIterator = nodes.iterator();
     }
 
-    /**
-     * Método para obtener el siguiente nodo disponible siguiendo el algoritmo Round Robin.
-     * Si el iterador alcanza el final de la lista, reinicia desde el principio.
-     */
     public synchronized Node getNextNode() {
         if (nodes.isEmpty()) {
+            System.out.println("Error: No hay nodos disponibles en el balanceador.");
             throw new IllegalStateException("No hay nodos disponibles.");
         }
 
-        if (!nodeIterator.hasNext()) {
-            nodeIterator = nodes.iterator(); // Reiniciar el iterador al principio de la lista
+        // Encontrar la menor carga
+        Node minLoadNode = null;
+        int minLoad = Integer.MAX_VALUE;
+
+        for (Node node : nodes) {
+            int currentLoad = node.getTaskAmount();
+            if (currentLoad < minLoad) {
+                minLoad = currentLoad;
+                minLoadNode = node;
+            }
         }
 
-        return nodeIterator.next();
+        // Crear una lista de nodos con la misma carga mínima
+        List<Node> minLoadNodes = new ArrayList<>();
+        for (Node node : nodes) {
+            if (node.getTaskAmount() == minLoad) {
+                minLoadNodes.add(node);
+            }
+        }
+
+        // Aplicar Round Robin entre los nodos con la misma carga mínima
+        Node selectedNode = minLoadNodes.get(currentIndex % minLoadNodes.size());
+        currentIndex++;  // Avanza al siguiente índice
+        System.out.println("Nodo seleccionado: " + selectedNode.getName());
+        return selectedNode;
     }
 }

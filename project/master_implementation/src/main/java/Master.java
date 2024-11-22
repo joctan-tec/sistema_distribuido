@@ -10,44 +10,42 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.Executors;
 import org.json.JSONObject;
 
 public class Master {
 
-    private final HashMap<String, Node> nodes = new HashMap<>();
+    private final List<Node> nodes = new ArrayList<>(); // Lista de nodos registrados
     private ArrayList<Task> tasks; 
     private LoadBalancer loadBalancer; // Balanceador de carga
     private int taskAmount = 0;
 
     public Master() {
         this.tasks = new ArrayList<>();
-        this.loadBalancer = new LoadBalancer(new ArrayList<>(nodes.values())); // Inicializar con nodos vacíos
+        this.loadBalancer = new LoadBalancer(nodes); // Inicializar con nodos vacíos
     }
 
     public void addNode(Node node) {
         synchronized (nodes) {
-            nodes.put(node.getName(), node);
-            updateLoadBalancer();
+            nodes.add(node);
         }
     }
 
     public void removeNode(String nodeName) {
         synchronized (nodes) {
-            nodes.remove(nodeName);
-            updateLoadBalancer();
+            nodes.removeIf(node -> node.getName().equals(nodeName));
         }
     }
 
-    private void updateLoadBalancer() {
-        loadBalancer = new LoadBalancer(new ArrayList<>(nodes.values()));
-    }
-
     public Node getNextNode() {
-        return loadBalancer.getNextNode();
+        System.out.println("Getting next node...");
+        Node nextNode = loadBalancer.getNextNode();
+        System.out.println("Current node: " + nodes);
+        return nextNode;
     }
 
-    public HashMap<String, Node> getNodes() {
+    public List<Node> getNodes() {
         return nodes;
     }
 
@@ -107,22 +105,23 @@ public class Master {
                 //String nodeIp;
                 synchronized (master.getNodes()) {
                     if (master.getNodes().isEmpty()) {
-                        String response = "No hay nodos registrados";
-                        exchange.sendResponseHeaders(404, response.getBytes().length);
-                        try (OutputStream os = exchange.getResponseBody()) {
-                            os.write(response.getBytes());
-                        }
+                        String responseMessage = "No hay nodos registrados";
+                        String response = generateHtmlResponse("error", responseMessage, null);
+                        sendHtmlResponse(exchange, response, 500);
                         return;
                     }
-
+                    System.out.println("Eligiendo nodo...");
                     // Usar el LoadBalancer para obtener el siguiente nodo
                     Node selectedNode = master.getNextNode();
                     String nodeIp = selectedNode.getIp();
+                    System.out.println("Nodo seleccionado: " + selectedNode.getName());
+
                     
-                    nodeIp = master.getNodes().values().iterator().next().getIp();
                     int taskId = master.getTaskAmount() + 1;
                     Task task = new Task(taskId + "", "generateId.java", "pending", "Node-1", nodeIp);
                     master.addTask(task);
+
+
 
                     // Hacer solicitud POST al nodo para asignar una tarea
                     JSONObject taskJson = task.toJson();
@@ -140,17 +139,15 @@ public class Master {
 
                     int responseCode = con.getResponseCode();
                     if (responseCode == 200) {
-                        String response = "Tarea asignada exitosamente al nodo con IP: " + nodeIp;
-                        exchange.sendResponseHeaders(200, response.getBytes().length);
-                        try (OutputStream os = exchange.getResponseBody()) {
-                            os.write(response.getBytes());
-                        }
+                        String responseMessage = "Tarea asignada exitosamente al nodo con IP: " + nodeIp;
+                        String response = generateHtmlResponse("success", responseMessage, null);
+                        selectedNode.addTask(task);
+                        sendHtmlResponse(exchange, response, 200);
                     } else {
-                        String response = "Error al asignar la tarea al nodo con IP: " + nodeIp;
-                        exchange.sendResponseHeaders(500, response.getBytes().length);
-                        try (OutputStream os = exchange.getResponseBody()) {
-                            os.write(response.getBytes());
-                        }
+                        String responseMessage = "Error al asignar la tarea al nodo con IP: " + nodeIp;
+                        String response = generateHtmlResponse("error", responseMessage, null);
+                        master.removeTask(task);
+                        sendHtmlResponse(exchange, response, 500);
                     }
 
 
@@ -173,16 +170,11 @@ public class Master {
             // Solo aceptar solicitudes GET
             if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 String response = generateHTML5toHomePage();
-                exchange.sendResponseHeaders(200, response.getBytes().length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
+                sendHtmlResponse(exchange, response, 200);
             } else {
-                String response = "Método no permitido";
-                exchange.sendResponseHeaders(405, response.getBytes().length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
+                String responseMessage = "Método no permitido";
+                String response = generateHtmlResponse("error", responseMessage, null);
+                sendHtmlResponse(exchange, response, 405);
             }
         }
     }
@@ -204,23 +196,28 @@ public class Master {
                 // Crear una lista de nombres de nodos y direcciones IP
                 StringBuilder responseBuilder = new StringBuilder();
                 synchronized (master.getNodes()) {
-                    for (Node node : master.getNodes().values()) {
-                        responseBuilder.append(node.getName()).append(": ").append(node.getIp()).append("\n");
+
+                    if (master.getNodes().isEmpty()) {
+                        String responseMessage = "No hay nodos registrados";
+                        String response = generateHtmlResponse("warning", responseMessage, null);
+                        sendHtmlResponse(exchange, response, 404);
+                        return;
+                    }
+
+                    for (Node node : master.getNodes()) {
+                        responseBuilder.append(node.getName()).append(": ").append(node.getIp() + "  Tasks: ").append(node.getTaskAmount()+"<br>");
+                        System.out.println(node.toString());
                     }
                 }
 
-                String response = responseBuilder.toString();
+                String responseMessage = responseBuilder.toString();
+                String response = generateHtmlResponse("success", responseMessage, null);
 
-                exchange.sendResponseHeaders(200, response.getBytes().length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
+                sendHtmlResponse(exchange, response, 200);
             } else {
-                String response = "Método no permitido";
-                exchange.sendResponseHeaders(405, response.getBytes().length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
+                String responseMessage = "Método no permitido";
+                String response = generateHtmlResponse("error", responseMessage, null);
+                sendHtmlResponse(exchange, response, 405);
             }
         }
     }
@@ -247,27 +244,19 @@ public class Master {
                     synchronized (master.getNodes()) {
                         String nodeName = "Node-" + (master.getNodes().size() + 1);
                         Node newNode = new Node(nodeName, requestBody);
-                        master.getNodes().put(nodeName, newNode);
+                        master.addNode(newNode);
                     }
 
                     String response = "Nodo registrado exitosamente con IP: " + requestBody;
+                    System.out.println(response);
                     exchange.sendResponseHeaders(200, response.getBytes().length);
-                    try (OutputStream os = exchange.getResponseBody()) {
-                        os.write(response.getBytes());
-                    }
                 } else {
                     String response = "Formato de IP inválido";
                     exchange.sendResponseHeaders(400, response.getBytes().length);
-                    try (OutputStream os = exchange.getResponseBody()) {
-                        os.write(response.getBytes());
-                    }
                 }
             } else {
                 String response = "Método no permitido";
                 exchange.sendResponseHeaders(405, response.getBytes().length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
-                }
             }
         }
 
@@ -320,9 +309,6 @@ public class Master {
                 "    max-width: 400px;\n" +
                 "    transition: transform 0.2s;\n" +
                 "  }\n" +
-                "  li:hover {\n" +
-                "    transform: scale(1.05);\n" +
-                "  }\n" +
                 "</style>\n" +
                 "</head>\n" +
                 "<body>\n" +
@@ -330,13 +316,55 @@ public class Master {
                 "  <h2>Endpoints</h2>\n" +
                 "  <ul>\n" +
                 "    <li><a href=\"/nodes\">GET /nodes</a> - Listar nodos registrados</li>\n" +
-                "    <li><a href=\"/registerNode\">POST /registerNode</a> - Registrar un nodo</li>\n" +
+                "    <li><a href=\"/getNewId\">GET /getNewId</a> - Obtiene un nuevo carnet</li>\n" +
+                "    <li><a href=\"#\">POST /registerNode</a> - Registrar un nodo</li>\n" +
                 "  </ul>\n" +
                 "</body>\n" +
                 "</html>";
     
         return html;
     }
+
+    private static void sendHtmlResponse(HttpExchange exchange, String response, int statusCode) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+        exchange.sendResponseHeaders(statusCode, response.getBytes("UTF-8").length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(response.getBytes("UTF-8"));
+        }
+    }
+
+    private static String generateHtmlResponse(String status, String message, String details) {
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html>");
+        html.append("<html lang=\"es\">");
+        html.append("<head>");
+        html.append("<meta charset=\"UTF-8\">");
+        html.append("<title>Respuesta del Servidor</title>");
+        html.append("<style>");
+        html.append("body { font-family: Arial, sans-serif; background-color: #121212; color:#e0e0e0; text-align: center; padding: 2em; }");
+        html.append(".container { background-color: #1f1f1f; border-radius: 10px; padding: 20px; max-width: 600px; margin: 0 auto; box-shadow: 0 0 20px rgba(0,0,0,0.1); }");
+        html.append(".status { font-size: 1.5em; color: ").append(status.equals("success") ? "#4caf50" : status.equals("warning") ? "#cc9c2b" : "#f44336").append("; }");
+        html.append(".message { font-size: 1.2em; margin: 20px 0; }");
+        html.append(".details { background-color: #2f2f2f; border-radius: 5px; padding: 10px; margin-top: 10px; white-space: pre-wrap; text-align: left; }");
+        html.append("</style>");
+        html.append("</head>");
+        html.append("<body>");
+        html.append("<div class=\"container\">");
+        html.append("<div class=\"status\">").append(status.equals("success") ? "✔ Éxito" : status.equals("warning") ? "☭ Advertencia" : "✖ Error" ).append("</div>");
+        html.append("<div class=\"message\">").append(message).append("</div>");
+        if (details != null) {
+            html.append("<div class=\"details\">").append(details).append("</div>");
+        }
+        html.append("</div>");
+        html.append("</body>");
+        html.append("</html>");
+        return html.toString();
+    }
+
+
+
+
+    
 
     public static void main(String[] args) {
         try {

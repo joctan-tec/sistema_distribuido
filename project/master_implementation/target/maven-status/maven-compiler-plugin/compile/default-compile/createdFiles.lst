@@ -3,7 +3,6 @@ Master$NodesHandler.class
 Node.class
 Task.class
 Master$GetNewIdHandler.class
+LoadBalancer.class
 Master.class
-ResourceManager$Resource.class
-ResourceManager.class
 Master$RegisterNodeHandler.class
