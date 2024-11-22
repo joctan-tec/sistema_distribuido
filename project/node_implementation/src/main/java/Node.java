@@ -9,7 +9,9 @@ import io.kubernetes.client.openapi.models.V1Pod;
 import io.kubernetes.client.openapi.models.V1PodList;
 import io.kubernetes.client.util.Config;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Array;
 import java.net.HttpURLConnection;
@@ -24,7 +26,9 @@ import org.json.JSONObject;
 
 public class Node {
 
+    private String dataIp;
     private static final String MASTER_POD_PATTERN = "^master-deployment.*";
+    private static final String DATA_POD_PATTERN = "^data-deployment.*";
     private static final int RETRY_DELAY_MS = 5000; // Intervalo de reintento en milisegundos
     private ArrayList<Task> tasks; // Lista de tareas asignadas al nodo
 
@@ -49,6 +53,27 @@ public class Node {
         System.out.println("Node running on port 8081");
 
         // Intentar registrar el nodo con el maestro hasta que tenga éxito
+        while (true) {
+            try {
+                // Obtener la IP del pod maestro
+                node.dataIp = getDataIp();
+                if (node.dataIp != null) {
+                    System.out.println("Data IP found: " + node.dataIp);
+                    break;
+                } else {
+                    System.out.println("No data pod found matching pattern: " + DATA_POD_PATTERN);
+                }
+            } catch (Exception e) {
+                System.out.println("Error during registration attempt: " + e.getMessage());
+            }
+
+            // Esperar antes de reintentar
+            try {
+                Thread.sleep(RETRY_DELAY_MS);
+            } catch (InterruptedException e) {
+                System.out.println("Retry delay interrupted: " + e.getMessage());
+            }
+        }
         while (true) {
             try {
                 // Obtener la IP del pod maestro
@@ -94,6 +119,33 @@ public class Node {
         public void handle(HttpExchange t) throws IOException {
             if ("POST".equalsIgnoreCase(t.getRequestMethod())) {
                 // Leer el cuerpo de la solicitud
+                // TODO: 
+                try {
+                    String ip = "192.168.1.100"; // Ejemplo de IP del nodo administrador
+                    ProcessBuilder builder = new ProcessBuilder(
+                    "java", "-cp", "/app/tasks/", "GeneradorCarnet", node.dataIp
+                    );
+                    builder.redirectErrorStream(true); // Redirige stderr a stdout para capturar todo
+                    Process process = builder.start();
+                    String processOutput;
+                    // Leer la salida del proceso
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                        StringBuilder output = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            output.append(line).append(System.lineSeparator()); // Agrega cada línea y un salto de línea
+                        }
+                        processOutput = output.toString(); // Convierte el StringBuilder a un String
+                    }
+                    // Esperar a que el proceso termine y obtener su código de salida
+                    int exitCode = process.waitFor();
+                    if (exitCode == 0){
+                    }
+                    System.out.println("El proceso terminó con código: " + exitCode);
+                } catch (IOException | InterruptedException e) {
+                    e.printStackTrace();
+                }
+
                 String requestBody = new String(t.getRequestBody().readAllBytes());
                 System.out.println("POST /assignTask 200 OK");
                 System.out.println("Task assigned: " + requestBody);
@@ -137,16 +189,50 @@ public class Node {
         }
     }
 
+        // Método para buscar la IP del pod maestro
+        private static String getDataIp() {
+            try {
+                // Inicializar el cliente de Kubernetes
+                ApiClient client = Config.defaultClient();
+                CoreV1Api api = new CoreV1Api(client);
+                Pattern pattern = Pattern.compile("^data-deployment.*");
+    
+                // Obtener la lista de pods
+                V1PodList podList = api.listPodForAllNamespaces(
+                    null, null, null, null, null, null, null, null, null, false);
+    
+                // Filtrar y mapear los pods que cumplen con el patrón
+                List<V1Pod> filteredPods = podList.getItems().stream()
+                    .filter(pod -> pattern.matcher(pod.getMetadata().getName()).matches())
+                    .collect(Collectors.toList());
+            
+                // Retornar la IP del primer pod encontrado
+                if (!filteredPods.isEmpty()) {
+                    return filteredPods.get(0).getStatus().getPodIP();
+                }
+    
+            } 
+            catch (ApiException e) {
+                System.out.println("Error al listar los pods: " + e.getResponseBody());
+                return null;
+            }
+            
+            catch (IOException e) {
+                System.out.println("Error al inicializar el cliente de Kubernetes: " + e.getMessage());
+            }
+            
+            catch (Exception e) {
+                System.out.println("Error al buscar el pod maestro: " + e.getMessage());
+            }
+            return null;
+        }
+
     // Método para buscar la IP del pod maestro
     private static String getMasterIp() {
         try {
             // Inicializar el cliente de Kubernetes
-            System.out.println("Initializing Kubernetes client...");
             ApiClient client = Config.defaultClient();
-            System.out.println("Kubernetes client initialized");
             CoreV1Api api = new CoreV1Api(client);
-            System.out.println("CoreV1Api initialized");
-
             Pattern pattern = Pattern.compile("^master-deployment.*");
 
             // Obtener la lista de pods
@@ -157,19 +243,7 @@ public class Node {
             List<V1Pod> filteredPods = podList.getItems().stream()
                 .filter(pod -> pattern.matcher(pod.getMetadata().getName()).matches())
                 .collect(Collectors.toList());
-
-
-            for (V1Pod pod : podList.getItems()) {
-                System.out.println("Pod: " + pod.getMetadata().getName());
-            }
-            System.out.println("Pods found: " + podList.getItems().size());
-
-            // Filtrar los pods que cumplen con el patrón
-            /*List<V1Pod> filteredPods = podList.getItems().stream()
-                    .filter(pod -> Pattern.matches(MASTER_POD_PATTERN, pod.getMetadata().getName()))
-                    .collect(Collectors.toList());*/
-            
-
+        
             // Retornar la IP del primer pod encontrado
             if (!filteredPods.isEmpty()) {
                 return filteredPods.get(0).getStatus().getPodIP();
