@@ -2,6 +2,8 @@
 FROM openjdk:17-jdk-slim
 # Copiar el archivo JAR y el script de entrada al contenedor
 COPY target/data-app.jar /app/data.jar
+COPY data/ /app/data/
+COPY logs/ /app/logs/
 COPY entrypoint.sh /app/entrypoint.sh
 # Dar permisos de ejecución al script
 RUN chmod +x /app/entrypoint.sh

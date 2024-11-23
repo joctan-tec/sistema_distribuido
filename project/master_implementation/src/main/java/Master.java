@@ -2,6 +2,9 @@ import com.sun.net.httpserver.HttpServer;
 
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -12,19 +15,36 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 import org.json.JSONObject;
 
 public class Master {
 
     private final List<Node> nodes = new ArrayList<>(); // Lista de nodos registrados
-    private ArrayList<Task> tasks; 
+    private ArrayList<Task> tasks;
     private LoadBalancer loadBalancer; // Balanceador de carga
     private int taskAmount = 0;
+    private final ConcurrentHashMap<String, CompletableFuture<String>> taskCompletionMap = new ConcurrentHashMap<>();
 
     public Master() {
         this.tasks = new ArrayList<>();
         this.loadBalancer = new LoadBalancer(nodes); // Inicializar con nodos vacíos
     }
+
+    // Métodos para manipular el mapa
+public CompletableFuture<String> createTaskFuture(String taskId) {
+    CompletableFuture<String> future = new CompletableFuture<>();
+    taskCompletionMap.put(taskId, future);
+    return future;
+}
+
+public void completeTask(String taskId, String message) {
+    CompletableFuture<String> future = taskCompletionMap.remove(taskId);
+    if (future != null) {
+        future.complete(message);
+    }
+}
 
     public void addNode(Node node) {
         synchronized (nodes) {
@@ -70,6 +90,9 @@ public class Master {
     // Método para inicializar y ejecutar el servidor HTTP
     public static void startHttpServer(Master master) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
+        HttpServer serverResponses = HttpServer.create(new InetSocketAddress(8082), 0);
+
+
 
         // Registrar el endpoint /registerNode
         server.createContext("/registerNode", new RegisterNodeHandler(master));
@@ -80,87 +103,126 @@ public class Master {
         // Configurar un pool de threads para manejar solicitudes
         server.setExecutor(Executors.newFixedThreadPool(10));
 
-        System.out.println("Servidor HTTP iniciado en el puerto 8081");
+        System.out.println("Servidor HTTP del Cliente iniciado en el puerto 8081");
         server.start();
+
+        serverResponses.createContext("/taskCompleted", new TaskCompletedHandler(master));
+        serverResponses.setExecutor(Executors.newFixedThreadPool(10));
+        System.out.println("Servidor HTTP interno iniciado en el puerto 8082");
+        serverResponses.start();
     }
 
-    // Manejador para el endpoint /getNewId
-    static class GetNewIdHandler implements HttpHandler {
-        
+    //Manejador de tareas completadas: esta funcion, recibe un json de esta forma:
+    /*
+     * {
+     *      "taskId": "1",
+     *     "status": "completed",
+     *     "nodeIp": "ip"
+     *     "message": "Algun texto"
+     * }
+     */
+    // Se encarga de buscar la tarea en la lista de tareas y cambiar su estado a completed
+    // Ademas se la quitara de la lista de tareas del nodo mediante la ip del nodo
 
+    static class TaskCompletedHandler implements HttpHandler {
         private final Master master;
-
-
-        public GetNewIdHandler(Master master) {
+    
+        public TaskCompletedHandler(Master master) {
             this.master = master;
-        }   
-
-        @Override                    
+        }
+    
+        @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // Solo aceptar solicitudes GET
-            if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                // Llamar al LoadBalancer para ver cual nodo tiene menos tareas y obtener su IP
+            if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                String requestBody = new String(exchange.getRequestBody().readAllBytes());
+                JSONObject taskJson = new JSONObject(requestBody);
+                String taskId = taskJson.getString("taskId");
+                String status = taskJson.getString("status");
+                String nodeIp = taskJson.getString("nodeIp");
+                String message = taskJson.optString("message", "");
 
-                // Por ahora, simplemente seleccionar el primer nodo de la lista
-                //String nodeIp;
-                synchronized (master.getNodes()) {
-                    if (master.getNodes().isEmpty()) {
-                        String responseMessage = "No hay nodos registrados";
-                        String response = generateHtmlResponse("error", responseMessage, null);
-                        sendHtmlResponse(exchange, response, 500);
-                        return;
-                    }
-                    System.out.println("Eligiendo nodo...");
-                    // Usar el LoadBalancer para obtener el siguiente nodo
-                    Node selectedNode = master.getNextNode();
-                    String nodeIp = selectedNode.getIp();
-                    System.out.println("Nodo seleccionado: " + selectedNode.getName());
-
-                    
-                    int taskId = master.getTaskAmount() + 1;
-                    Task task = new Task(taskId + "", "generateId.java", "pending", "Node-1", nodeIp);
-                    master.addTask(task);
-
-
-
-                    // Hacer solicitud POST al nodo para asignar una tarea
-                    JSONObject taskJson = task.toJson();
-
-                    URL url = new URL("http://" + nodeIp + ":8081/assignTask");
-                    HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                    con.setRequestMethod("POST");
-                    con.setRequestProperty("Content-Type", "application/json");
-                    con.setDoOutput(true);
-
-                    try (OutputStream os = con.getOutputStream()) {
-                        byte[] input = taskJson.toString().getBytes("utf-8");
-                        os.write(input, 0, input.length);
-                    }
-
-                    int responseCode = con.getResponseCode();
-                    if (responseCode == 200) {
-                        String responseMessage = "Tarea asignada exitosamente al nodo con IP: " + nodeIp;
-                        String response = generateHtmlResponse("success", responseMessage, null);
-                        selectedNode.addTask(task);
-                        sendHtmlResponse(exchange, response, 200);
-                    } else {
-                        String responseMessage = "Error al asignar la tarea al nodo con IP: " + nodeIp;
-                        String response = generateHtmlResponse("error", responseMessage, null);
-                        master.removeTask(task);
-                        sendHtmlResponse(exchange, response, 500);
-                    }
-
-
+                Task task = master.getTasks().stream().filter(t -> t.getId().equals(taskId)).findFirst().orElse(null);
+                if (task == null) {
+                    String response = generateHtmlResponse("error", "Tarea no encontrada", null);
+                    sendHtmlResponse(exchange, response, 404);
+                    return;
                 }
-            } else {
-                String response = "Método no permitido";
-                exchange.sendResponseHeaders(405, response.getBytes().length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(response.getBytes());
+
+                
+    
+                if ("completed".equals(status)) {
+
+                    Node node = master.getNodes().stream().filter(n -> n.getIp().equals(nodeIp)).findFirst().orElse(null);
+                    
+                    master.completeTask(taskId, message);
+                    String response = generateHtmlResponse("success", "Tarea marcada como completada", null);
+                    sendHtmlResponse(exchange, response, 200);
+                } else {
+                    String response = generateHtmlResponse("error", "Estado no reconocido", null);
+                    sendHtmlResponse(exchange, response, 400);
                 }
             }
         }
     }
+    
+
+static class GetNewIdHandler implements HttpHandler {
+    private final Master master;
+
+    public GetNewIdHandler(Master master) {
+        this.master = master;
+    }
+
+    @Override
+    public void handle(HttpExchange exchange) throws IOException {
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            synchronized (master.getNodes()) {
+                if (master.getNodes().isEmpty()) {
+                    String response = generateHtmlResponse("error", "No hay nodos registrados", null);
+                    sendHtmlResponse(exchange, response, 500);
+                    return;
+                }
+
+                Node selectedNode = master.getNextNode();
+                String taskId = "Task-" + (master.getTaskAmount() + 1);
+                Task task = new Task(taskId, "IdGenerator", "pending", selectedNode.getName(), selectedNode.getIp());
+                master.addTask(task);
+
+                // Crear una future para esperar la tarea
+                CompletableFuture<String> taskFuture = master.createTaskFuture(taskId);
+
+                // Enviar la tarea al nodo
+                JSONObject taskJson = task.toJson();
+                URL url = new URL("http://" + selectedNode.getIp() + ":8081/assignTask");
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("POST");
+                con.setRequestProperty("Content-Type", "application/json");
+                con.setDoOutput(true);
+
+                try (OutputStream os = con.getOutputStream()) {
+                    os.write(taskJson.toString().getBytes("utf-8"));
+                }
+
+                if (con.getResponseCode() == 200) {
+                    try {
+                        // Esperar hasta que la tarea sea completada o timeout (30 segundos)
+                        String result = taskFuture.get(30, TimeUnit.SECONDS);
+                        String response = generateHtmlResponse("success", result, null);
+                        sendHtmlResponse(exchange, response, 200);
+                    } catch (Exception e) {
+                        master.removeTask(task); // Cleanup en caso de fallo
+                        String response = generateHtmlResponse("error", "Timeout o error en la tarea", null);
+                        sendHtmlResponse(exchange, response, 500);
+                    }
+                } else {
+                    master.removeTask(task);
+                    String response = generateHtmlResponse("error", "Error al asignar tarea al nodo", null);
+                    sendHtmlResponse(exchange, response, 500);
+                }
+            }
+        }
+    }
+}
     
 
     // Manejador para el endpoint /
@@ -198,7 +260,7 @@ public class Master {
                 synchronized (master.getNodes()) {
 
                     if (master.getNodes().isEmpty()) {
-                        String responseMessage = "No hay nodos registrados";
+                        String responseMessage = "No tenemos nodos registrados";
                         String response = generateHtmlResponse("warning", responseMessage, null);
                         sendHtmlResponse(exchange, response, 404);
                         return;

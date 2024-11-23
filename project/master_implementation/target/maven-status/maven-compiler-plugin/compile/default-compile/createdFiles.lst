@@ -5,4 +5,5 @@ Task.class
 Master$GetNewIdHandler.class
 LoadBalancer.class
 Master.class
+Master$TaskCompletedHandler.class
 Master$RegisterNodeHandler.class

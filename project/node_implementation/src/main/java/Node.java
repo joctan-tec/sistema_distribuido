@@ -20,6 +20,11 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.json.JSONObject;
@@ -27,22 +32,27 @@ import org.json.JSONObject;
 public class Node {
 
     private String dataIp;
+    private String nodeIp;
+    private String masterIp;
     private static final String MASTER_POD_PATTERN = "^master-deployment.*";
     private static final String DATA_POD_PATTERN = "^data-deployment.*";
     private static final int RETRY_DELAY_MS = 5000; // Intervalo de reintento en milisegundos
     private ArrayList<Task> tasks; // Lista de tareas asignadas al nodo
-
-
+    
+    // Cola bloqueante para almacenar las tareas
+    private BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+    
     public Node() {
-        this.tasks = new ArrayList<>();
+        // Inicia el hilo trabajador al crear el nodo
+        new Thread(this::processTasks).start();
     }
 
     public void addTask(Task task) {
-        tasks.add(task);
+        taskQueue.offer(task);  // Agrega la tarea a la cola
+        System.out.println("Tarea agregada a la cola: " + task.getId());
     }
 
     public static void main(String[] args) throws IOException {
-        // Iniciar el servidor HTTP local del nodo
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
         Node node = new Node();
 
@@ -52,10 +62,14 @@ public class Node {
         server.start();
         System.out.println("Node running on port 8081");
 
-        // Intentar registrar el nodo con el maestro hasta que tenga éxito
+        System.out.println("Node waiting responses on port 8082");
+
+        // Inicia el hilo para procesar tareas
+        new Thread(node::processTasks).start();  // Inicia el hilo trabajador
+
+        // Bucle de registro con el maestro (como estaba)
         while (true) {
             try {
-                // Obtener la IP del pod maestro
                 node.dataIp = getDataIp();
                 if (node.dataIp != null) {
                     System.out.println("Data IP found: " + node.dataIp);
@@ -66,30 +80,27 @@ public class Node {
             } catch (Exception e) {
                 System.out.println("Error during registration attempt: " + e.getMessage());
             }
-
-            // Esperar antes de reintentar
-            try {
-                Thread.sleep(RETRY_DELAY_MS);
-            } catch (InterruptedException e) {
-                System.out.println("Retry delay interrupted: " + e.getMessage());
-            }
+            
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException e) {
+                    System.out.println("Sleep interrupted: " + e.getMessage());
+                    Thread.currentThread().interrupt(); // Restore interrupted status
+                }
+            
         }
+
         while (true) {
             try {
-                // Obtener la IP del pod maestro
-                System.out.println("Searching for master pod...");
-                String masterIp = getMasterIp();
-                if (masterIp != null) {
-                    System.out.println("Master IP found: " + masterIp);
-
-                    // Obtener la IP local del nodo
+                node.masterIp = getMasterIp();
+                if (node.masterIp != null) {
+                    System.out.println("Master IP found: " + node.masterIp);
                     InetAddress localHost = InetAddress.getLocalHost();
-                    String nodeIp = localHost.getHostAddress();
+                    node.nodeIp = localHost.getHostAddress();
 
-                    // Registrar este nodo con el maestro
-                    if (registerWithMaster(masterIp, nodeIp)) {
-                        System.out.println("Node successfully registered with master at " + masterIp);
-                        break; // Salir del bucle si el registro es exitoso
+                    if (registerWithMaster(node.masterIp, node.nodeIp)) {
+                        System.out.println("Node successfully registered with master at " + node.masterIp);
+                        break;
                     }
                 } else {
                     System.out.println("No master pod found matching pattern: " + MASTER_POD_PATTERN);
@@ -98,13 +109,117 @@ public class Node {
                 System.out.println("Error during registration attempt: " + e.getMessage());
             }
 
-            // Esperar antes de reintentar
             try {
                 Thread.sleep(RETRY_DELAY_MS);
             } catch (InterruptedException e) {
-                System.out.println("Retry delay interrupted: " + e.getMessage());
+                System.out.println("Sleep interrupted: " + e.getMessage());
+                Thread.currentThread().interrupt(); // Restore interrupted status
+            }
+            
+        }
+    }
+
+
+
+
+    // Hilo trabajador que procesa las tareas en orden
+    private void processTasks() {
+        while (true) {
+            try {
+                Task task = taskQueue.take();  // Extrae y bloquea si la cola está vacía
+                System.out.println("Procesando tarea: " + task.getId());
+
+                String result = executeGenerateId(this, task);  // Ejecuta la tarea
+                if (result != null) {
+                    notifyMaster(task.getId(), result);  // Notifica al maestro
+                } else {
+                    notifyMaster(task.getId(), "Error al procesar la tarea");
+                }
+                
+            } catch (InterruptedException e) {
+                System.out.println("El hilo de procesamiento fue interrumpido.");
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                System.out.println("Error en el procesamiento de tareas: " + e.getMessage());
             }
         }
+    }
+
+    // Método para notificar al maestro
+    private void notifyMaster(String taskId, String response) {
+        try {
+            URL url = new URL("http://" + masterIp + ":8082/taskCompleted");
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+
+            JSONObject json = new JSONObject();
+            json.put("taskId", taskId);
+            json.put("nodeIp", nodeIp);
+            json.put("status", "completed");
+            json.put("message", response);
+
+            try (OutputStream os = connection.getOutputStream()) {
+                os.write(json.toString().getBytes());
+            }
+
+            int responseCode = connection.getResponseCode();
+            System.out.println("Respuesta enviada al maestro: " + responseCode);
+
+        } catch (IOException e) {
+            System.out.println("Error al notificar al maestro: " + e.getMessage());
+        }
+    }
+
+    private static String executeGenerateId(Node node, Task task) {
+        try {
+                    
+            System.out.println("Ejecutando IdGenerator en " + node.dataIp);
+            ProcessBuilder builder = new ProcessBuilder(
+                "java", "-cp", "/app/tasks", "IdGenerator", node.dataIp
+            );
+            builder.redirectErrorStream(true); // Redirige stderr a stdout para capturar todo
+            Process process = builder.start();
+            String processOutput;
+            // Leer la salida del proceso
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append(System.lineSeparator()); // Agrega cada línea y un salto de línea
+                }
+                processOutput = output.toString(); // Convierte el StringBuilder a un String
+                System.out.println("Salida del proceso: " + processOutput);
+            }
+            // Esperar a que el proceso termine y obtener su código de salida
+            int exitCode = process.waitFor();
+            System.out.println("Código de salida: " + exitCode);
+            if (exitCode == 0){
+                URL url = new URL("http://" + node.masterIp + ":8081/request");
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("POST");
+                con.setDoOutput(true);
+                
+                JSONObject taskJson = new JSONObject();
+                taskJson.put("ip", node.nodeIp);
+                taskJson.put("operation", "Escribir");
+                taskJson.put("content", processOutput);
+                
+                try (OutputStream os = con.getOutputStream()) {
+                    os.write(taskJson.toString().getBytes());
+                }
+                int responseCode = con.getResponseCode();
+                System.out.println("Response code: " + responseCode);
+                return processOutput;
+            }else{
+                return null;
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     // Manejador para el endpoint /assignTask
@@ -119,32 +234,8 @@ public class Node {
         public void handle(HttpExchange t) throws IOException {
             if ("POST".equalsIgnoreCase(t.getRequestMethod())) {
                 // Leer el cuerpo de la solicitud
-                // TODO: 
-                try {
-                    String ip = "192.168.1.100"; // Ejemplo de IP del nodo administrador
-                    ProcessBuilder builder = new ProcessBuilder(
-                    "java", "-cp", "/app/tasks/", "GeneradorCarnet", node.dataIp
-                    );
-                    builder.redirectErrorStream(true); // Redirige stderr a stdout para capturar todo
-                    Process process = builder.start();
-                    String processOutput;
-                    // Leer la salida del proceso
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                        StringBuilder output = new StringBuilder();
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            output.append(line).append(System.lineSeparator()); // Agrega cada línea y un salto de línea
-                        }
-                        processOutput = output.toString(); // Convierte el StringBuilder a un String
-                    }
-                    // Esperar a que el proceso termine y obtener su código de salida
-                    int exitCode = process.waitFor();
-                    if (exitCode == 0){
-                    }
-                    System.out.println("El proceso terminó con código: " + exitCode);
-                } catch (IOException | InterruptedException e) {
-                    e.printStackTrace();
-                }
+                
+                
 
                 String requestBody = new String(t.getRequestBody().readAllBytes());
                 System.out.println("POST /assignTask 200 OK");

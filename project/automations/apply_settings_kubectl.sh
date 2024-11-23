@@ -17,3 +17,11 @@ kubectl apply -f $project_root_dir/master_implementation/k8s/master-deployment.y
 kubectl apply -f $project_root_dir/node_implementation/k8s/service-account-node.yaml
 kubectl apply -f $project_root_dir/node_implementation/k8s/cluster-role-node.yaml
 kubectl apply -f $project_root_dir/node_implementation/k8s/cluster-role-binding-node.yaml
+
+# Data Storage
+kubectl apply -f $project_root_dir/data_storage_implementation/k8s/data-service.yaml
+kubectl apply -f $project_root_dir/data_storage_implementation/k8s/data-deployment.yaml
+
+kubectl apply -f $project_root_dir/data_storage_implementation/k8s/service-account-data.yaml
+kubectl apply -f $project_root_dir/data_storage_implementation/k8s/cluster-role-data.yaml
+kubectl apply -f $project_root_dir/data_storage_implementation/k8s/cluster-role-binding-data.yaml

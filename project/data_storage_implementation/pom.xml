@@ -75,7 +75,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>data</mainClass>
+                            <mainClass>ResourceManagerServer</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

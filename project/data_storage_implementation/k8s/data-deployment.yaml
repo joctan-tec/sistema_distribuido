@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: data-container
-        image: joctan04/ds-data:latest
+        image: joctan04/ds-data-storage:latest
         ports:
         - containerPort: 8081
         volumeMounts:
