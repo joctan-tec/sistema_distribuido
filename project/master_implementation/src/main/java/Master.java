@@ -91,9 +91,6 @@ public void completeTask(String taskId, String message) {
     public static void startHttpServer(Master master) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8081), 0);
         HttpServer serverResponses = HttpServer.create(new InetSocketAddress(8082), 0);
-
-
-
         // Registrar el endpoint /registerNode
         server.createContext("/registerNode", new RegisterNodeHandler(master));
         server.createContext("/nodes", new NodesHandler(master));
@@ -107,10 +104,13 @@ public void completeTask(String taskId, String message) {
         server.start();
 
         serverResponses.createContext("/taskCompleted", new TaskCompletedHandler(master));
+        serverResponses.createContext("/healthcheck", new HealthCheckHandler(master));
         serverResponses.setExecutor(Executors.newFixedThreadPool(10));
         System.out.println("Servidor HTTP interno iniciado en el puerto 8082");
         serverResponses.start();
+        master.checkNodeHealth();
     }
+    
 
     //Manejador de tareas completadas: esta funcion, recibe un json de esta forma:
     /*
@@ -165,6 +165,91 @@ public void completeTask(String taskId, String message) {
         }
     }
     
+    static class HealthCheckHandler implements HttpHandler {
+        private final Master master;
+    
+        public HealthCheckHandler(Master master) {
+            this.master = master;
+        }
+    
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            if ("POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                String nodeIp = exchange.getRemoteAddress().getAddress().getHostAddress();
+                synchronized (master.getNodes()) {
+                    Node node = master.getNodes().stream().filter(n -> n.getIp().equals(nodeIp)).findFirst().orElse(null);
+                    if (node != null) {
+                        // Actualizar el timestamp de último mensaje recibido
+                        node.setLastAliveTimestamp(System.currentTimeMillis());
+                        System.out.println("Nodo " + nodeIp + " actualizado last alive");
+                        
+                    } else {
+                        System.out.println("Nodo " + nodeIp + " no encontrado");
+                        String response = generateHtmlResponse("error", "Nodo no encontrado", null);
+                        sendHtmlResponse(exchange, response, 404);
+                        return;
+                    }
+                }
+                System.out.println("Nodo " + nodeIp + " encontrado vivo");
+                String response = generateHtmlResponse("success", "Nodo registrado como vivo", null);
+                sendHtmlResponse(exchange, response, 200);
+            }
+        }
+    }
+
+    // revisar nodos muertos
+    public void checkNodeHealth() {
+        new Thread(() -> {
+            while (true) {
+                try {
+                    long currentTime = System.currentTimeMillis();
+                    synchronized (nodes) {
+                        for (Node node : nodes) {
+                            // Si el nodo no ha enviado un mensaje en los últimos 30 segundos
+                            if (currentTime - node.getLastAliveTimestamp() > 30000) {
+                                System.out.println("Nodo " + node.getName() + " está muerto, redistribuyendo tareas...");
+                                // Eliminar el nodo de la lista
+                                nodes.remove(node);
+
+                                // Redistribuir las tareas de este nodo entre los demás
+                                redistributeTasks(node);
+
+                                // Eliminar tareas asignadas a este nodo
+                                removeTasksForNode(node);
+                            }
+                        }
+                    }
+                    System.out.println("Revisando si esta vivo");
+                    Thread.sleep(10000); // Revisa cada 10 segundos
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+// Redistribuir tareas de un nodo muerto
+private void redistributeTasks(Node deadNode) {
+    List<Task> tasksToRedistribute = new ArrayList<>();
+    for (Task task : tasks) {
+        if (task.getIp().equals(deadNode.getIp())) {
+            tasksToRedistribute.add(task);
+        }
+    }
+
+    // Asignar las tareas a nodos activos disponibles
+    for (Task task : tasksToRedistribute) {
+        Node nextNode = getNextNode(); // Obtener el siguiente nodo activo
+        task.setNode(nextNode.getName());
+        nextNode.addTask(task);
+    }
+}
+
+// Eliminar tareas del nodo muerto
+private void removeTasksForNode(Node node) {
+    tasks.removeIf(task -> task.getIp().equals(node.getIp()));
+    System.out.println("Eliminando tareas del nodo muerto");
+}
 
 static class GetNewIdHandler implements HttpHandler {
     private final Master master;
@@ -422,11 +507,6 @@ static class GetNewIdHandler implements HttpHandler {
         html.append("</html>");
         return html.toString();
     }
-
-
-
-
-    
 
     public static void main(String[] args) {
         try {

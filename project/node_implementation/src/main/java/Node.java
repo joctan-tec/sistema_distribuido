@@ -117,6 +117,7 @@ public class Node {
             }
             
         }
+        node.startHealthCheck();
     }
 
 
@@ -401,5 +402,23 @@ public class Node {
             os.write(response.getBytes());
             os.close();
         }
+    }
+
+    public void startHealthCheck() {
+        // Crear un hilo que realice el healthcheck cada 10 segundos
+        new Thread(() -> {
+            while (true) {
+                try {
+                    // Enviar solicitud HTTP al Master en el puerto 8082
+                    URL url = new URL("http://" + masterIp + ":8082/healthcheck");
+                    HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                    con.setRequestMethod("POST");
+                    con.getResponseCode(); // Solo para disparar la solicitud
+                    Thread.sleep(10000); // Espera 10 segundos antes de enviar otra solicitud
+                } catch (Exception e) {
+                    System.out.println("Error en el healthcheck para el nodo " + nodeIp);
+                }
+            }
+        }).start();
     }
 }

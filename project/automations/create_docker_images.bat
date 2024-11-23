@@ -1,25 +1,29 @@
 @echo off
 
-REM Variables
-SET current_dir=%~dp0
-SET current_dir=%current_dir:~0,-1%
-FOR %%A IN ("%current_dir%") DO SET project_root_dir=%%~dpA
-SET project_root_dir=%project_root_dir:~0,-1%
+:: Variables
+set "current_dir=%~dp0"
+set "project_root_dir=C:\Users\Brend\OneDrive\Documents\GitHub\sistema_distribuido\project"
 
-REM Crear las imágenes de Docker
+:: Crear las imágenes de Docker
 
-REM Construir la imagen para el master
-cd /d "%project_root_dir%\master_implementation"
-docker build -t brendabbr2/ds-master:latest -f docker/Dockerfile.master .
-cd /d "%project_root_dir%"
+:: Construir la imagen para el master
+cd "%project_root_dir%\master_implementation"
+docker build -t brendabbr2/ds-master:latest -f docker\Dockerfile.master .
+cd "%project_root_dir%"
 
-REM Construir la imagen para el nodo
-cd /d "%project_root_dir%\node_implementation"
-docker build -t brendabbr2/ds-node:latest -f docker/Dockerfile.node .
-cd /d "%project_root_dir%"
+:: Construir la imagen para el node
+cd "%project_root_dir%\node_implementation"
+docker build -t brendabbr2/ds-node:latest -f docker\Dockerfile.node .
+cd "%project_root_dir%"
 
-REM Hacer push de las imágenes
+:: Construir la imagen para el data_storage
+cd "%project_root_dir%\data_storage_implementation"
+docker build -t brendabbr2/ds-data-storage:latest -f docker\Dockerfile.data .
+cd "%project_root_dir%"
+
+:: Hacer push de las imágenes
 docker push brendabbr2/ds-master:latest
 docker push brendabbr2/ds-node:latest
+docker push brendabbr2/ds-data-storage:latest
 
 exit /b 0

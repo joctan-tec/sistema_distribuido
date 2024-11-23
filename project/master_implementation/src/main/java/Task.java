@@ -5,7 +5,7 @@ public class Task {
     private final String id; // Identificador único de la tarea
     private final String fileName; // Nombre del archivo a procesar
     private String status; // Estado de la tarea
-    private final String node; // Nodo al que se asigna la tarea
+    private String node; // Nodo al que se asigna la tarea
     private final String ip; // Dirección IP del nodo
 
     //private long timestampAssigned; // Timestamp cuando se asigna la tarea
@@ -24,6 +24,10 @@ public class Task {
     // Obtener el nombre del archivo
     public String getFileName() {
         return fileName;
+    }
+
+    public void setNode(String node){
+        this.node = node;
     }
 
     // Obtener el estado de la tarea

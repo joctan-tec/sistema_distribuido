@@ -2,8 +2,9 @@ Master$HomeHandler.class
 Master$NodesHandler.class
 Node.class
 Task.class
-Master$GetNewIdHandler.class
 LoadBalancer.class
+Master$GetNewIdHandler.class
 Master.class
 Master$TaskCompletedHandler.class
 Master$RegisterNodeHandler.class
+Master$HealthCheckHandler.class

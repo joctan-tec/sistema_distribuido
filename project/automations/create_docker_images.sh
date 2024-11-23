@@ -4,7 +4,7 @@
 current_dir=$(realpath "$0")
 current_dir=$(dirname "$current_dir")
 project_root_dir=$(dirname "$current_dir")
-
+echo $project_root_dir
 # Crear las imágenes de Docker
 # Construir la imagen para el master
 cd master_implementation

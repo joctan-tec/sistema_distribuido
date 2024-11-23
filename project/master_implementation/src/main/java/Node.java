@@ -21,6 +21,7 @@ public class Node {
     private int taskAmount = 0; // Cantidad de tareas asignadas al nodo
     private final ExecutorService executor; // Pool de threads para ejecutar tareas
     private final AtomicBoolean busy; // Indica si el nodo está ocupado
+    private long lastAliveTimestamp; // Timestamp de la última vez que el nodo estuvo vivo
 
 
     public Node(String name, String ip) {
@@ -29,6 +30,7 @@ public class Node {
         this.tasks = new ArrayList<>();
         this.executor = Executors.newFixedThreadPool(10);
         this.busy = new AtomicBoolean(false);
+        this.lastAliveTimestamp = System.currentTimeMillis(); // Inicializar al momento de la creación
     }
 
     public String getName() {
@@ -67,6 +69,14 @@ public class Node {
 
     public boolean isBusy() {
         return busy.get();
+    }
+
+    public long getLastAliveTimestamp() {
+        return lastAliveTimestamp;
+    }
+
+    public void setLastAliveTimestamp(long lastAliveTimestamp) {
+        this.lastAliveTimestamp = lastAliveTimestamp;
     }
 
     /*
