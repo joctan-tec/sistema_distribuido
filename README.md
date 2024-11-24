@@ -1,5 +1,5 @@
 # Sisteman Distribuido
-Explicación de la arquitectura, mecanismos de comunicación, sincronización, y gestión de fallos.
+[Enlace al repositorio de github](https://github.com/joctan-tec/sistema_distribuido)
 ## Índice
 1. [Documentación de Diseño](#documentación-de-diseño)
     - [Explicación de la arquitectura](#explicación-de-la-arquitectura) 
@@ -13,7 +13,7 @@ Explicación de la arquitectura, mecanismos de comunicación, sincronización, y
     - [Prueba 4: Escalabilidad del Sistema](#4-escalabilidad-del-sistema)
     - [Prueba 5: Redistribución Automática de Procesos](#5-redistribución-automática-de-procesos)
 ## Documentación de Diseño
-
+![Diagrama en blanco](https://github.com/user-attachments/assets/2f5a72a3-bdb5-4d45-b904-6df2445ce3ac)
 ### Explicación de la arquitectura
 
 ### Mecanismos de comunicación
