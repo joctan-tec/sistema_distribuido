@@ -11,14 +11,15 @@ Explicación de la arquitectura, mecanismos de comunicación, sincronización, y
     - [Prueba 3: Manejo de Fallos](#3-manejo-de-fallos)
     - [Prueba 4: Escalabilidad del Sistema](#4-escalabilidad-del-sistema)
     - [Prueba 5: Redistribución Automática de Procesos](#5-redistribución-automática-de-procesos)
-   
-## Explicación de la arquitectura
+## Documentación de Diseño
 
-## Mecanismos de comunicación
+### Explicación de la arquitectura
 
-## Sincronización
+### Mecanismos de comunicación
 
-## Gestión de fallos
+### Sincronización
+
+### Gestión de fallos
 
 ## Pruebas y resultados
 
