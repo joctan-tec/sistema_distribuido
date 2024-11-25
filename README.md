@@ -6,6 +6,19 @@ Estudiantes:
     
 [Enlace al repositorio de github](https://github.com/joctan-tec/sistema_distribuido)
 
+El sistema distribuido hace uso de kubernets para simular una red interconectada (cluster) donde su principal tarea es realizar simulaciones de tareas pesadas y escribir data en un pod administrador de esa data. 
+
+Se utilizaron tecnologías de Docker, Java como lenguage de programación y Kubernetes para utilizar su red interna. 
+
+Comandos para ejecutar el proyecto:
+
+Se debe de cambiar el nombre de la imagen por el nombre de usuario de Docker y también cambiar la imagen utilizada en los .yaml por su nombre de usuario.
+```bash
+git clone https://github.com/joctan-tec/sistema_distribuido
+./sistema_distribuido/project/automations/setup_all.sh
+./sistema_distribuido/project/node_implementation/automations/create_nodes.sh 2 #Se puede cambiar el 2 por la cantidad de pods deseados
+```
+
 ## Índice
 1. [Documentación de Diseño](#documentación-de-diseño)
     - [Explicación de la arquitectura](#explicación-de-la-arquitectura) 
@@ -19,22 +32,24 @@ Estudiantes:
     - [Prueba 4: Escalabilidad del Sistema](#4-escalabilidad-del-sistema)
     - [Prueba 5: Redistribución Automática de Procesos](#5-redistribución-automática-de-procesos)
 ## Documentación de Diseño
-![Diagrama en blanco](https://github.com/user-attachments/assets/2f5a72a3-bdb5-4d45-b904-6df2445ce3ac)
+
+![Diagrama en blanco (1) (1)](https://github.com/user-attachments/assets/b7f84743-08e1-459f-a99d-fccd0767393a)
+
 ### Explicación de la arquitectura
 
 Se definieron las siguientes clases:
 
-Nodo: El sistema consiste en una lista de Nodos que es supervisada por Master, los nodos ejecutan las tareas y le devuelven la respuesta al cliente. Para este sistema, las tareas son:
+**Nodo:** El sistema consiste en una lista de Nodos que es supervisada por Master, los nodos ejecutan las tareas y le devuelven la respuesta al cliente. Para este sistema, las tareas son:
     - 1. Generar un carnet
     - 2. Leer el archivo de texto de carnets
     
-Master: Actúa como un intermediario entre el cliente y los nodos. Recibiendo consultas en el puerto 8081 por parte del cliente y distribuyendo tareas a los nodos. También recibe mensajes por HTTP de parte de los nodos, señalando que están vivos (un Healthcheck). Los mensajes de los nodos (comunicación interna) se hacen en el puerto 8082.
+**Master:** Actúa como un intermediario entre el cliente y los nodos. Recibiendo consultas en el puerto 8081 por parte del cliente y distribuyendo tareas a los nodos. También recibe mensajes por HTTP de parte de los nodos, señalando que están vivos (un Healthcheck). Los mensajes de los nodos (comunicación interna) se hacen en el puerto 8082.
 
-LoadBalancer: Busca el nodo óptimo para ejecutar una tarea, tomando en cuenta la cantidad de tareas que se asignan al nodo que menos tiene y si todas tienen la misma cantidad de tareas, aplica un Round Robbin. Este también es llamado cuando se necesita redistribuir las tareas cuando un nodo es señalado como muerto o cuando llega a su límite de tareas que puede ejecutar. 
+**LoadBalancer:** Busca el nodo óptimo para ejecutar una tarea, tomando en cuenta la cantidad de tareas que se asignan al nodo que menos tiene y si todas tienen la misma cantidad de tareas, aplica un Round Robbin. Este también es llamado cuando se necesita redistribuir las tareas cuando un nodo es señalado como muerto o cuando llega a su límite de tareas que puede ejecutar. 
 
-PendingTask: Representación de una tarea que almacena una referencia a master, el nombre del archivo que desea ejecutar, la tarea a ejecutar (escritura o lectura), el estado de la tarea (completada o pendiente) y una referencia a la consulta HTTP para poder responderle cuando se completó la tarea. 
+**PendingTask:** Representación de una tarea que almacena una referencia a master, el nombre del archivo que desea ejecutar, la tarea a ejecutar (escritura o lectura), el estado de la tarea (completada o pendiente) y una referencia a la consulta HTTP para poder responderle cuando se completó la tarea. 
 
-Task: Una representación de la tarea por ejecutar. 
+**Task:** Una representación de la tarea por ejecutar. 
 
 ### Mecanismos de comunicación
 
