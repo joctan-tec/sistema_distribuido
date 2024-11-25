@@ -5,8 +5,8 @@ COPY target/node-app.jar /app/node.jar
 COPY entrypoint.sh /app/entrypoint.sh
 COPY tasks/ /app/tasks/
 
-# Compilar la clase IdGenerator
-RUN javac /app/tasks/IdGenerator.java
+# Compilar todas las clases de Java
+RUN javac /app/tasks/*.java
 
 # Dar permisos de ejecución al script
 RUN chmod +x /app/entrypoint.sh

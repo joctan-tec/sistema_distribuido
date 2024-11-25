@@ -5,41 +5,63 @@ public class LoadBalancer {
 
     private final List<Node> nodes;  // Lista de nodos registrados
     private int currentIndex = 0;    // Índice para implementar Round Robin
+    private final int MAX_TASKS = 10; // Máximo de tareas por nodo
 
     public LoadBalancer(List<Node> nodes) {
         this.nodes = nodes;
     }
 
-    public synchronized Node getNextNode() {
+    public Node getNextNode() {
         if (nodes.isEmpty()) {
             System.out.println("Error: No hay nodos disponibles en el balanceador.");
-            throw new IllegalStateException("No hay nodos disponibles.");
+            return null;
         }
-
-        // Encontrar la menor carga
-        Node minLoadNode = null;
-        int minLoad = Integer.MAX_VALUE;
-
+    
+        List<Node> availableNodes = new ArrayList<>();
         for (Node node : nodes) {
-            int currentLoad = node.getTaskAmount();
-            if (currentLoad < minLoad) {
-                minLoad = currentLoad;
-                minLoadNode = node;
+            if (node != null && node.isAlive() && node.getTaskAmount() < MAX_TASKS) {
+                availableNodes.add(node);
             }
         }
-
-        // Crear una lista de nodos con la misma carga mínima
-        List<Node> minLoadNodes = new ArrayList<>();
-        for (Node node : nodes) {
-            if (node.getTaskAmount() == minLoad) {
-                minLoadNodes.add(node);
-            }
+    
+        if (availableNodes.isEmpty()) {
+            System.out.println("Error: Todos los nodos están inactivos o sobrecargados.");
+            return null;
         }
-
-        // Aplicar Round Robin entre los nodos con la misma carga mínima
-        Node selectedNode = minLoadNodes.get(currentIndex % minLoadNodes.size());
-        currentIndex++;  // Avanza al siguiente índice
-        System.out.println("Nodo seleccionado: " + selectedNode.getName());
+    
+        Node selectedNode = availableNodes.get(currentIndex % availableNodes.size());
+        currentIndex++;
         return selectedNode;
+    }
+
+    public void redistributeLoad(Node overloadedNode) {
+        if (!nodes.contains(overloadedNode)) {
+            System.out.println("Error: El nodo no pertenece al balanceador.");
+            return;
+        }
+
+        if (!overloadedNode.isAlive() || overloadedNode.getTaskAmount() >= MAX_TASKS) {
+            List<Node> availableNodes = new ArrayList<>();
+            for (Node node : nodes) {
+                if (node.isAlive() && node.getTaskAmount() < MAX_TASKS) {
+                    availableNodes.add(node);
+                }
+            }
+
+            if (availableNodes.isEmpty()) {
+                System.out.println("No se puede redistribuir la carga. Todos los nodos están inactivos o llenos.");
+                return;
+            }
+
+            // Redistribuir tareas del nodo sobrecargado entre nodos disponibles
+            List<Task> tasksToRedistribute = overloadedNode.clearExcessTasks(MAX_TASKS);
+            for (Task task : tasksToRedistribute) {
+                Node targetNode = getNextNode();
+                if (targetNode != null) {
+                    targetNode.addTask(task);
+                    System.out.println("Tarea redistribuida al nodo: " + targetNode.getName());
+                }
+            }
+        }
     }
 }

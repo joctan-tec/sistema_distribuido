@@ -1,0 +1,5 @@
+# Ignoramos todas las carpetas llamadas target/
+target/
+
+# Ignoramos todos los archivos dependency-reduced-pom.xml
+dependency-reduced-pom.xml

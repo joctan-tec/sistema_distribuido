@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.json.JSONObject;
@@ -56,22 +57,22 @@ public class ResourceManagerServer {
         }
     }
 
-    // Método para leer contenido del archivo de datos
-    public String readData() {
+    public CompletableFuture<String> readDataAsync() {
+    return CompletableFuture.supplyAsync(() -> {
         lock.readLock().lock();
         try {
             String data = Files.readString(dataFilePath, StandardCharsets.UTF_8);
             writeLog("Lectura realizada");
-            System.out.println("Lectura realizada");
             return data.isEmpty() ? "Archivo vacío" : data;
         } catch (IOException e) {
             writeLog("Error de lectura: " + e.getMessage());
-            System.err.println("Error al leer el archivo de datos: " + e.getMessage());
             return "Error al leer el archivo.";
         } finally {
             lock.readLock().unlock();
         }
-    }
+    });
+}
+
 
     // Escribir un registro en el archivo de logs
     private void writeLog(String message) {
@@ -98,6 +99,8 @@ public class ResourceManagerServer {
         server.createContext("/resource", new RequestHandler(this));
         // Crear un contexto para la consulta de carnets con parametro de path "carnet" y metodo GET
         server.createContext("/query", new QueryHandler(dataFilePath));
+        // Crear un contexto para la consulta de todos los carnets y metodo GET
+        
         server.createContext("/logs", new LogHandler());
         server.setExecutor(Executors.newFixedThreadPool(4)); // Pool de hilos
         server.start();
@@ -183,9 +186,14 @@ public class ResourceManagerServer {
 
         private String processRequest(String operation, String ip, String content) {
             if ("Leer".equalsIgnoreCase(operation)) {
-                return server.readData();
+                try {
+                    return server.readDataAsync().get();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return "Error al leer los datos.";
+                }
             } else if ("Escribir".equalsIgnoreCase(operation)) {
-                boolean success = server.writeData(ip + ": " + content);
+                boolean success = server.writeData(content);
                 return success ? "Escritura exitosa desde IP " + ip : "Error al escribir";
             } else {
                 server.writeLog("Operación no válida desde IP " + ip);

@@ -39,7 +39,7 @@ public class IdGenerator {
     // Método para generar un carnet con un año aleatorio dentro de un rango reciente y simular una tarea pesada
     public static String generarCarnetConRetraso() throws InterruptedException {
         Random random = new Random();
-        int delay = 0 + random.nextInt(2000); // Generar un tiempo entre 1000ms (1s) y 10000ms (10s)
+        int delay = 0 + random.nextInt(10000); // Generar un tiempo entre 1000ms (1s) y 10000ms (10s)
         Thread.sleep(delay);
 
         // Generar el carnet

@@ -18,4 +18,6 @@ done
 
 sh $current_dir/apply_settings_kubectl.sh
 
+project_root_dir=$(dirname "$current_dir")
+
 exit 0

@@ -130,7 +130,10 @@ public class Node {
                 Task task = taskQueue.take();  // Extrae y bloquea si la cola está vacía
                 System.out.println("Procesando tarea: " + task.getId());
 
-                String result = executeGenerateId(this, task);  // Ejecuta la tarea
+                String result = executeTask(this, task);  // Ejecuta la tarea
+                
+
+                
                 if (result != null) {
                     notifyMaster(task.getId(), result);  // Notifica al maestro
                 } else {
@@ -174,12 +177,12 @@ public class Node {
         }
     }
 
-    private static String executeGenerateId(Node node, Task task) {
+    private static String executeTask(Node node, Task task) {
         try {
                     
             System.out.println("Ejecutando IdGenerator en " + node.dataIp);
             ProcessBuilder builder = new ProcessBuilder(
-                "java", "-cp", "/app/tasks", "IdGenerator", node.dataIp
+                "java", "-cp", "/app/tasks", task.getFileName(), node.dataIp
             );
             builder.redirectErrorStream(true); // Redirige stderr a stdout para capturar todo
             Process process = builder.start();
@@ -205,7 +208,7 @@ public class Node {
                 
                 JSONObject taskJson = new JSONObject();
                 taskJson.put("ip", node.nodeIp);
-                taskJson.put("operation", "Escribir");
+                taskJson.put("operation", task.getOperation());
                 taskJson.put("content", processOutput);
                 
                 try (OutputStream os = con.getOutputStream()) {
@@ -256,12 +259,13 @@ public class Node {
                 String id = taskJson.getString("id");
                 String fileName = taskJson.getString("fileName");
                 String status = taskJson.getString("status");
+                String operation = taskJson.getString("operation");
 
 
                 
 
                 // Crear una nueva tarea y agregarla a la lista de tareas del nodo
-                Task task = new Task(id, fileName, status);
+                Task task = new Task(id, fileName, status, operation);
                 node.addTask(task);
 
                 // Responder con un mensaje de éxito
@@ -410,6 +414,8 @@ public class Node {
             while (true) {
                 try {
                     // Enviar solicitud HTTP al Master en el puerto 8082
+                    //Log de healthcheck con hora formateada con hora de costa rica
+                    System.out.println("Healthcheck para el nodo " + nodeIp + " a las " + java.time.LocalDateTime.now());
                     URL url = new URL("http://" + masterIp + ":8082/healthcheck");
                     HttpURLConnection con = (HttpURLConnection) url.openConnection();
                     con.setRequestMethod("POST");

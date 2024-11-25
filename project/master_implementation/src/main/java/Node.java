@@ -3,6 +3,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.sun.net.httpserver.HttpServer;
@@ -19,9 +21,11 @@ public class Node {
     private final String ip; // Dirección IP del nodo
     private ArrayList<Task> tasks; // Lista de tareas asignadas al nodo
     private int taskAmount = 0; // Cantidad de tareas asignadas al nodo
+    private int tasksCompleted = 0; // Cantidad de tareas completadas
     private final ExecutorService executor; // Pool de threads para ejecutar tareas
     private final AtomicBoolean busy; // Indica si el nodo está ocupado
     private long lastAliveTimestamp; // Timestamp de la última vez que el nodo estuvo vivo
+    private boolean isAlive = true; // Indica si el nodo está vivo
 
 
     public Node(String name, String ip) {
@@ -59,6 +63,15 @@ public class Node {
         return taskAmount;
     }
 
+    public int getTasksCompleted() {
+        return tasksCompleted;
+    }
+
+
+    public void incrementTasksCompleted() {
+        tasksCompleted++;
+    }
+
     public void setBusy() {
         busy.set(true);
     }
@@ -77,6 +90,22 @@ public class Node {
 
     public void setLastAliveTimestamp(long lastAliveTimestamp) {
         this.lastAliveTimestamp = lastAliveTimestamp;
+    }
+
+    public boolean isAlive() {
+        return isAlive;
+    }
+
+    public void setAsDead() {
+        isAlive = false;
+    }
+
+    public List<Task> clearExcessTasks(int maxTasks) {
+        List<Task> excessTasks = new LinkedList<>();
+        while (tasks.size() > maxTasks) {
+            excessTasks.add(tasks.remove(tasks.size() - 1));
+        }
+        return excessTasks;
     }
 
     /*

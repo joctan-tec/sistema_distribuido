@@ -4,6 +4,7 @@ import org.json.JSONObject;
 public class Task {
     private final String id; // Identificador único de la tarea
     private final String fileName; // Nombre del archivo a procesar
+    private final String operation; // Operación a realizar
     private String status; // Estado de la tarea
     private String node; // Nodo al que se asigna la tarea
     private final String ip; // Dirección IP del nodo
@@ -12,11 +13,12 @@ public class Task {
     //private long timestampCompleted; // Timestamp cuando se completa la tarea
 
     // Constructor
-    public Task(String id, String fileName, String status, String node, String ip) {
+    public Task(String id, String fileName, String status, String node, String ip, String operation) {
         this.id = id;
         this.fileName = fileName;
         this.status = status;
         this.node = node;
+        this.operation = operation;
         this.ip = ip;
         //this.timestampAssigned = System.currentTimeMillis();
     }
@@ -24,6 +26,10 @@ public class Task {
     // Obtener el nombre del archivo
     public String getFileName() {
         return fileName;
+    }
+
+    public String getOperation() {
+        return operation;
     }
 
     public void setNode(String node){
@@ -57,11 +63,23 @@ public class Task {
         return id;
     }
 
+    public JSONObject completeJson(){
+        JSONObject json = new JSONObject();
+        json.put("id", id);
+        json.put("fileName", fileName);
+        json.put("status", status);
+        json.put("node", node);
+        json.put("ip", ip);
+        json.put("operation", operation);
+        return json;
+    }
+
     public JSONObject toJson() {
         JSONObject json = new JSONObject();
         json.put("id", id);
         json.put("fileName", fileName);
         json.put("status", status);
+        json.put("operation", operation);
         return json;
     }
 
