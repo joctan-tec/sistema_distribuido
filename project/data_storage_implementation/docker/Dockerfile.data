@@ -1,18 +1,13 @@
+# Usar una imagen base de OpenJDK
 FROM openjdk:17-jdk-slim
-
-# Copiar archivos al contenedor
-COPY target/node-app.jar /app/node.jar
+# Copiar el archivo JAR y el script de entrada al contenedor
+COPY target/data-app.jar /app/data.jar
+COPY data/ /app/data/
+COPY logs/ /app/logs/
 COPY entrypoint.sh /app/entrypoint.sh
-COPY tasks/ /app/tasks/
-
-# Compilar la clase IdGenerator
-RUN javac /app/tasks/IdGenerator.java
-
 # Dar permisos de ejecución al script
 RUN chmod +x /app/entrypoint.sh
-
 # Usar el script como punto de entrada
 ENTRYPOINT ["bash", "/app/entrypoint.sh"]
-
 # Exponer el puerto 8081
 EXPOSE 8081

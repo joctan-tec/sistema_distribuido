@@ -5,4 +5,4 @@ if [ -f /var/run/secrets/kubernetes.io/serviceaccount/ca.crt ]; then
 fi
 
 # Iniciar la aplicación
-exec java -jar /app/master.jar
+exec java -jar /app/node.jar

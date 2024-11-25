@@ -1,27 +1,26 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: node-job-PLACEHOLDER  # PLACEHOLDER será reemplazado
+  name: data-deployment
 spec:
-  completions: 1  # Un solo Pod por Job
-  parallelism: 1  # Un Pod a la vez
-  backoffLimit: 0  # No intentar reiniciar el Pod si termina
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-data
   template:
     metadata:
       labels:
-        app: node
+        app: distributed-data
     spec:
-      serviceAccountName: node-serviceaccount-node  # Usar el ServiceAccount ya creado
       containers:
-      - name: node-container
-        image: joctan04/ds-node:latest
+      - name: data-container
+        image: joctan04/ds-data-storage:latest
         ports:
         - containerPort: 8081
         volumeMounts:
         - name: ca-certificates
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
           readOnly: true
-      restartPolicy: Never
       volumes:
       - name: ca-certificates
         projected:

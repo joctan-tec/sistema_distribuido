@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-reader-binding-node
+subjects:
+- kind: ServiceAccount
+  name: node-serviceaccount-node  # Corregido aquí
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: pod-reader-node
+  apiGroup: rbac.authorization.k8s.io

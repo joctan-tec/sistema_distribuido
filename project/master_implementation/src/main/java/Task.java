@@ -1,51 +1,82 @@
+import org.json.JSONObject;
+
+
 public class Task {
     private final String id; // Identificador único de la tarea
-    private final long executionTime; // Tiempo de ejecución simulado en milisegundos
-    private long timestampAssigned; // Timestamp cuando se asigna la tarea
-    private long timestampCompleted; // Timestamp cuando se completa la tarea
+    private final String fileName; // Nombre del archivo a procesar
+    private String status; // Estado de la tarea
+    private String node; // Nodo al que se asigna la tarea
+    private final String ip; // Dirección IP del nodo
 
-    public Task(String id, long executionTime) {
+    //private long timestampAssigned; // Timestamp cuando se asigna la tarea
+    //private long timestampCompleted; // Timestamp cuando se completa la tarea
+
+    // Constructor
+    public Task(String id, String fileName, String status, String node, String ip) {
         this.id = id;
-        this.executionTime = executionTime;
+        this.fileName = fileName;
+        this.status = status;
+        this.node = node;
+        this.ip = ip;
+        //this.timestampAssigned = System.currentTimeMillis();
     }
+
+    // Obtener el nombre del archivo
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setNode(String node){
+        this.node = node;
+    }
+
+    // Obtener el estado de la tarea
+    public String getStatus() {
+        return status;
+    }
+
+    // Establecer el estado de la tarea
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    // Obtener el nodo al que se asigna la tarea
+    public String getNode() {
+        return node;
+    }
+
+    // Obtener la dirección IP del nodo
+    public String getIp() {
+        return ip;
+    }
+
+
 
     // Obtener el ID de la tarea
     public String getId() {
         return id;
     }
 
-    // Obtener el tiempo de ejecución
-    public long getExecutionTime() {
-        return executionTime;
+    public JSONObject toJson() {
+        JSONObject json = new JSONObject();
+        json.put("id", id);
+        json.put("fileName", fileName);
+        json.put("status", status);
+        return json;
     }
 
-    // Asignar el timestamp de asignación
-    public void setTimestampAssigned(long timestampAssigned) {
-        this.timestampAssigned = timestampAssigned;
-    }
 
-    // Obtener el timestamp de asignación
-    public long getTimestampAssigned() {
-        return timestampAssigned;
-    }
 
-    // Asignar el timestamp de finalización
-    public void setTimestampCompleted(long timestampCompleted) {
-        this.timestampCompleted = timestampCompleted;
-    }
 
-    // Obtener el timestamp de finalización
-    public long getTimestampCompleted() {
-        return timestampCompleted;
-    }
 
     @Override
     public String toString() {
         return "Task{" +
                 "id='" + id + '\'' +
-                ", executionTime=" + executionTime +
-                ", timestampAssigned=" + timestampAssigned +
-                ", timestampCompleted=" + timestampCompleted +
+                ", fileName='" + fileName + '\'' +
+                ", status='" + status + '\'' +
+                ", node='" + node + '\'' +
+                ", ip='" + ip + '\'' +
                 '}';
     }
 }
