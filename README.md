@@ -1,5 +1,11 @@
-# Sisteman Distribuido
+# Sistema Distribuido
+Estudiantes:
+
+- Brenda Badilla Rodríguez, 2020065241
+- Joctan Porras Esquivel, 2021069671
+    
 [Enlace al repositorio de github](https://github.com/joctan-tec/sistema_distribuido)
+
 ## Índice
 1. [Documentación de Diseño](#documentación-de-diseño)
     - [Explicación de la arquitectura](#explicación-de-la-arquitectura) 
@@ -16,11 +22,48 @@
 ![Diagrama en blanco](https://github.com/user-attachments/assets/2f5a72a3-bdb5-4d45-b904-6df2445ce3ac)
 ### Explicación de la arquitectura
 
+Se definieron las siguientes clases:
+
+Nodo: El sistema consiste en una lista de Nodos que es supervisada por Master, los nodos ejecutan las tareas y le devuelven la respuesta al cliente. Para este sistema, las tareas son:
+    - 1. Generar un carnet
+    - 2. Leer el archivo de texto de carnets
+    
+Master: Actúa como un intermediario entre el cliente y los nodos. Recibiendo consultas en el puerto 8081 por parte del cliente y distribuyendo tareas a los nodos. También recibe mensajes por HTTP de parte de los nodos, señalando que están vivos (un Healthcheck). Los mensajes de los nodos (comunicación interna) se hacen en el puerto 8082.
+
+LoadBalancer: Busca el nodo óptimo para ejecutar una tarea, tomando en cuenta la cantidad de tareas que se asignan al nodo que menos tiene y si todas tienen la misma cantidad de tareas, aplica un Round Robbin. Este también es llamado cuando se necesita redistribuir las tareas cuando un nodo es señalado como muerto o cuando llega a su límite de tareas que puede ejecutar. 
+
+PendingTask: Representación de una tarea que almacena una referencia a master, el nombre del archivo que desea ejecutar, la tarea a ejecutar (escritura o lectura), el estado de la tarea (completada o pendiente) y una referencia a la consulta HTTP para poder responderle cuando se completó la tarea. 
+
+Task: Una representación de la tarea por ejecutar. 
+
 ### Mecanismos de comunicación
+
+#### HTTP:
+
+1. Nodos - Master:
+   
+    - En el puerto 8081 los nodos envían un request de HTTP señalando que ya terminaron la tarea.
+    - En el puerto 8082 los nodos envían un request de HTTP señalando que están vivos. 
+
+2. Nodos - Data_Storage:
+
+    - Nodo envía el request para poder leer y escribir en el archivo de texto en el puerto 8081 a data_storage.
+    - Data_storage envía una respuesta señalando si la tarea se realizó con éxito a Nodo.
+    - Nodo le envía esta respuesta a Master en el puerto 8082. 
+
+#### Hilos:
+
+1. Existen hilos trabajadores tanto en Master como en Nodo, los cuales en Master se encargan de revisar periódicamente el último hearthbeat, enviado por los nodos. Y de esta forma decidiendo si un nodo debe ser marcado como muerto y redistribuyendo sus tareas. 
+2. En Nodo también se tiene un hilo trabajador revisando constantemente si hay tareas nuevas en su cola para ejecutarlas.
 
 ### Sincronización
 
+Usamos un bloqueo de read and write para que las lecturas se pudieran hacer de forma paralela mientras el bit de escritura no esté encendido y para que las escrituras se hagan de forma serial. 
+
 ### Gestión de fallos
+
+1. Healthchecks: Master monitorea los heartbeats de los Nodos cada 15 segundos para validar que estos sigan vivos. En caso de no recibir respuesta, se redistribuyen las tareas de ese nodo entre los demás y este nodo se marca como muerto realizando un borrado lógico. 
+2. LoadBalancer: Monitorea las tareas que tienen asignadas los nodos, si alguno llegara a sobrepasar los 4 se redistribuyen sus tareas entre los demás nodos. 
 
 ## Pruebas y resultados
 
